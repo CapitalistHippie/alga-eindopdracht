@@ -1,15 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Roguelike.models;
 
 namespace Roguelike
 {
     public class DungeonGenerator : IDungeonGenerator
     {
+        private IRandomService _randomService;
+        private IDungeonService _dungeonService;
+
+        public DungeonGenerator(IRandomService randomService, IDungeonService dungeonService)
+        {
+            _randomService = randomService;
+            _dungeonService = dungeonService;
+        }
+
         public Dungeon Generate(int width, int height)
         {
             var dungeon = new Dungeon();
-            var rnd = new Random();
+            var rnd = _randomService.GetRandom();
 
             // Generate the rooms.
             for (int y = 0; y < height; y++)
@@ -45,6 +53,7 @@ namespace Roguelike
                         northCorridor.Room2 = dungeon.DungeonRows[y - 1][x];
                         dungeon.DungeonRows[y][x].NorthCorridor = northCorridor;
                         dungeon.DungeonRows[y - 1][x].SouthCorridor = northCorridor;
+                        dungeon.Corridors.Add(northCorridor);
                     }
 
                     if (x != 0)
@@ -55,13 +64,13 @@ namespace Roguelike
                         westCorridor.Room2 = dungeon.DungeonRows[y][x - 1];
                         dungeon.DungeonRows[y][x].WestCorridor = westCorridor;
                         dungeon.DungeonRows[y][x - 1].EastCorridor = westCorridor;
+                        dungeon.Corridors.Add(westCorridor);
                     }
                 }
             }
 
             // Set a random start room.
-            var row = dungeon.DungeonRows[rnd.Next(dungeon.DungeonRows.Count)];
-            var startRoom = row[rnd.Next(row.Count)];
+            var startRoom = _dungeonService.GetRandomRoom(dungeon);
             startRoom.Enemy = null;
             startRoom.Visited = true;
             dungeon.StartRoom = startRoom;
@@ -71,12 +80,21 @@ namespace Roguelike
 
             do
             {
-                row = dungeon.DungeonRows[rnd.Next(dungeon.DungeonRows.Count)];
-                endRoom = row[rnd.Next(row.Count)];
+                endRoom = _dungeonService.GetRandomRoom(dungeon);
                 endRoom.Enemy = null;
                 dungeon.EndRoom = endRoom;
 
             } while (startRoom == endRoom);
+
+            var minimalSpanningTree = _dungeonService.GetMinimalSpanningTree(dungeon);
+
+            foreach (var corridor in dungeon.Corridors)
+            {
+                if (!minimalSpanningTree.Contains(corridor))
+                {
+                    corridor.Collapsed = true;
+                }
+            }
 
             return dungeon;
         }

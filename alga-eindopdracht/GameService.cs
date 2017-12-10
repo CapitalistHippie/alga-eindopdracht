@@ -56,6 +56,9 @@ namespace Roguelike
                     case "talisman":
                         Talisman();
                         break;
+                    case "handgranaat":
+                        Handgranaat();
+                        break;
                     case "startpunt":
                         Startpunt(inputSplit);
                         break;
@@ -64,6 +67,11 @@ namespace Roguelike
                         break;
                 }
             } while (true);
+        }
+
+        private void Handgranaat()
+        {
+            throw new NotImplementedException();
         }
 
         private void Startpunt(string[] input)
@@ -137,6 +145,7 @@ namespace Roguelike
             Console.WriteLine("Commands:");
             Console.WriteLine("Cheat - Enables/disables cheat mode.");
             Console.WriteLine("Talisman - Vertelt je hoe veel stappen de uitgang van je vandaan is.");
+            Console.WriteLine("Handgranaat - Vernietig de dungeon.");
             Console.WriteLine("Startpunt <x> <y> - Zet het startpunt op deze coördinaten.");
             Console.WriteLine("Eindpunt <x> <y> - Zet het eindpunt op deze coördinaten.");
             Console.WriteLine("Exit - Sluit het spel.");
@@ -166,7 +175,7 @@ namespace Roguelike
                         {
                             Console.ForegroundColor = ConsoleColor.DarkYellow;
                         }
-                        
+
                         ////if (SafestPath.Contains(room))
                         ////{
                         ////    Console.ForegroundColor = ConsoleColor.DarkGreen;

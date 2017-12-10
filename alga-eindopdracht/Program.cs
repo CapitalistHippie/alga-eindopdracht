@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using System;
 
 namespace Roguelike
 {
@@ -8,8 +7,9 @@ namespace Roguelike
         static void Main(string[] args)
         {
             var serviceProvider = new ServiceCollection()
-                .AddSingleton<IDungeonGenerator, DungeonGenerator>()
+                .AddSingleton<IRandomService, RandomService>()
                 .AddSingleton<IDungeonService, DungeonService>()
+                .AddSingleton<IDungeonGenerator, DungeonGenerator>()
                 .AddSingleton<IGameService, GameService>()
                 .BuildServiceProvider();
 

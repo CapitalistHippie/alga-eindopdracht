@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using MoreLinq;
 using Roguelike.ExtensionMethods;
 using Roguelike.models;
 
@@ -8,6 +9,13 @@ namespace Roguelike
 {
     public class DungeonService : IDungeonService
     {
+        private IRandomService _randomService;
+
+        public DungeonService(IRandomService randomService)
+        {
+            _randomService = randomService;
+        }
+
         public int GetDistanceInSteps(Room from, Room to)
         {
             int depth = 0;
@@ -54,6 +62,77 @@ namespace Roguelike
             } while (roomSource != from);
 
             return depth;
+        }
+
+        private int GetDungeonRoomCount(Dungeon dungeon)
+        {
+            return dungeon.DungeonRows.Count * dungeon.DungeonRows[0].Count;
+        }
+
+        public List<Corridor> GetMinimalSpanningTree(Dungeon dungeon)
+        {
+            var visitedRooms = new List<Room>();
+            var mstCorridors = new List<Corridor>();
+
+            var startingRoom = GetRandomRoom(dungeon);
+            visitedRooms.Add(startingRoom);
+
+            while (true)
+            {
+                Corridor lowestWeightCorridor = null;
+                Room lowestWeightCorridorOppositeRoom = null;
+                int lowestWeightCorridorWeight = int.MaxValue;
+                foreach (var visitingRoom in visitedRooms)
+                {
+                    // Get all corridors with a room that hasn't been visited yet.
+                    var corridors = GetConnectedCorridors(visitingRoom).Where(x => !visitedRooms.Contains(GetOtherRoom(x, visitingRoom)));
+
+                    // We might have already visited all those places.
+                    if (!corridors.Any())
+                    {
+                        continue;
+                    }
+
+                    // Filter the corridors on the lowest weight.
+                    var corridor = corridors.MinBy(x => GetCorridorWeight(x, visitingRoom));
+
+                    // Check if it's really the lowest weight.
+                    var weight = GetCorridorWeight(corridor, visitingRoom);
+                    if (weight < lowestWeightCorridorWeight)
+                    {
+                        lowestWeightCorridor = corridor;
+                        lowestWeightCorridorWeight = weight;
+                        lowestWeightCorridorOppositeRoom = GetOtherRoom(corridor, visitingRoom);
+                    }
+                }
+
+                mstCorridors.Add(lowestWeightCorridor);
+                visitedRooms.Add(lowestWeightCorridorOppositeRoom);
+
+                // If we've visited all the rooms, then we're done.
+                if (visitedRooms.Count == GetDungeonRoomCount(dungeon))
+                {
+                    break;
+                }
+            }
+
+            return mstCorridors;
+        }
+
+        public Room GetRandomRoom(Dungeon dungeon)
+        {
+            var rnd = _randomService.GetRandom();
+
+            var randomRow = dungeon.DungeonRows[rnd.Next(dungeon.DungeonRows.Count)];
+            var randomRoom = randomRow[rnd.Next(randomRow.Count)];
+
+            return randomRoom;
+        }
+
+        private int GetCorridorWeight(Corridor corridor, Room fromRoom)
+        {
+            var oppositeRoom = GetOtherRoom(corridor, fromRoom);
+            return oppositeRoom.Enemy == null ? 0 : oppositeRoom.Enemy.Level;
         }
 
         public List<Room> GetSafestPath(Room from, Room to)
@@ -166,6 +245,43 @@ namespace Roguelike
             }
 
             return rooms;
+        }
+
+        private List<Corridor> GetConnectedCorridors(Room room)
+        {
+            var corridors = new List<Corridor>();
+
+            if (room.NorthCorridor != null && !room.NorthCorridor.Collapsed)
+            {
+                corridors.Add(room.NorthCorridor);
+            }
+
+            if (room.EastCorridor != null && !room.EastCorridor.Collapsed)
+            {
+                corridors.Add(room.EastCorridor);
+            }
+
+            if (room.SouthCorridor != null && !room.SouthCorridor.Collapsed)
+            {
+                corridors.Add(room.SouthCorridor);
+            }
+
+            if (room.WestCorridor != null && !room.WestCorridor.Collapsed)
+            {
+                corridors.Add(room.WestCorridor);
+            }
+
+            return corridors;
+        }
+
+        private Room GetOtherRoom(Corridor corridor, Room room)
+        {
+            if (corridor.Room1 == room)
+            {
+                return corridor.Room2;
+            }
+
+            return corridor.Room1;
         }
     }
 }
