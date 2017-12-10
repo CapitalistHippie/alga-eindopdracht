@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using MoreLinq;
 using Roguelike.ExtensionMethods;
@@ -16,52 +15,14 @@ namespace Roguelike
             _randomService = randomService;
         }
 
-        public int GetDistanceInSteps(Room from, Room to)
+        public int GetSafestDistanceInSteps(Dungeon dungeon, Room from, Room to)
         {
-            int depth = 0;
+            return GetSafestPath(dungeon, from, to).Count - 1;
+        }
 
-            if (from == to)
-            {
-                return depth;
-            }
-
-            var roomSources = new Dictionary<Room, Room>();
-            var visitedRooms = new List<Room>();
-            var roomQueue = new Queue<Room>();
-
-            roomQueue.Enqueue(from);
-            visitedRooms.Add(from);
-
-            while (roomQueue.Any())
-            {
-                var room = roomQueue.Dequeue();
-
-                if (room == to)
-                {
-                    break;
-                }
-
-                var neighbouringRooms = GetNeighbouringRooms(room);
-
-                foreach (var neighbouringRoom in neighbouringRooms)
-                {
-                    if (!visitedRooms.Contains(neighbouringRoom))
-                    {
-                        roomQueue.Enqueue(neighbouringRoom);
-                        visitedRooms.Add(neighbouringRoom);
-                        roomSources[neighbouringRoom] = room;
-                    }
-                }
-            }
-
-            var roomSource = to;
-            do
-            {
-                roomSource = roomSources[roomSource];
-                depth++;
-            } while (roomSource != from);
-
-            return depth;
+        public int GetShortestDistanceInSteps(Room from, Room to)
+        {
+            return GetShortestPath(from, to).Count - 1;
         }
 
         private int GetDungeonRoomCount(Dungeon dungeon)
@@ -132,12 +93,79 @@ namespace Roguelike
         private int GetCorridorWeight(Corridor corridor, Room fromRoom)
         {
             var oppositeRoom = GetOtherRoom(corridor, fromRoom);
-            return oppositeRoom.Enemy == null ? 0 : oppositeRoom.Enemy.Level;
+            return (oppositeRoom.Enemy == null ? 0 : oppositeRoom.Enemy.Level) + 1; // + 1 so it's at least 1.
         }
 
-        public List<Room> GetSafestPath(Room from, Room to)
+        public List<Room> GetSafestPath(Dungeon dungeon, Room from, Room to)
         {
-            throw new NotImplementedException();
+            if (from == to)
+            {
+                return new List<Room> { from };
+            }
+
+            var dist = new Dictionary<Room, int>();
+            var prev = new Dictionary<Room, Room>();
+            var visited = new List<Room>();
+            var nextRoom = from;
+
+            foreach (var dungeonRow in dungeon.DungeonRows)
+            {
+                foreach (var room in dungeonRow)
+                {
+                    dist.Add(room, int.MaxValue);
+                }
+            }
+
+            dist[from] = 0;
+
+            while (true)
+            {
+                var room = nextRoom;
+
+                if (room == to)
+                {
+                    break;
+                }
+
+                visited.Add(room);
+
+                // Update the weights.
+                foreach (var corridor in GetConnectedCorridors(room))
+                {
+                    var corridorRoom = GetOtherRoom(corridor, room);
+                    if (visited.Contains(corridorRoom))
+                    {
+                        continue;
+                    }
+
+                    var corridorWeight = GetCorridorWeight(corridor, room);
+                    var totalCorridorWeight = dist[room] + corridorWeight;
+
+                    if (totalCorridorWeight < dist[corridorRoom])
+                    {
+                        dist[corridorRoom] = totalCorridorWeight;
+                        prev[corridorRoom] = room;
+                    }
+                }
+
+                // Get the next room we're going to visit. It's the room with the smallest weight that hasn't been visited yet.
+                nextRoom = dist.Where(x => !visited.Contains(x.Key)).MinBy(x => x.Value).Key;
+            }
+
+            var path = new List<Room>();
+
+            var roomSource = to;
+            do
+            {
+                path.Add(roomSource);
+
+                roomSource = prev[roomSource];
+            } while (roomSource != from);
+
+            path.Add(from);
+            path.Reverse();
+
+            return path;
         }
 
         public List<Room> GetShortestPath(Room from, Room to)
@@ -147,7 +175,7 @@ namespace Roguelike
                 return new List<Room> { from };
             }
 
-            var roomSources = new Dictionary<Room, Room>();
+            var prev = new Dictionary<Room, Room>();
             var visitedRooms = new List<Room>();
             var roomQueue = new Queue<Room>();
 
@@ -171,7 +199,7 @@ namespace Roguelike
                     {
                         roomQueue.Enqueue(neighbouringRoom);
                         visitedRooms.Add(neighbouringRoom);
-                        roomSources[neighbouringRoom] = room;
+                        prev[neighbouringRoom] = room;
                     }
                 }
             }
@@ -183,7 +211,7 @@ namespace Roguelike
             {
                 path.Add(roomSource);
 
-                roomSource = roomSources[roomSource];
+                roomSource = prev[roomSource];
             } while (roomSource != from);
 
             path.Add(from);

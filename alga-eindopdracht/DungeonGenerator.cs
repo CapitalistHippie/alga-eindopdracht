@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using Roguelike.models;
 
 namespace Roguelike
@@ -17,7 +18,7 @@ namespace Roguelike
         public Dungeon Generate(int width, int height)
         {
             var dungeon = new Dungeon();
-            var rnd = _randomService.GetRandom();
+            var rng = _randomService.GetRandom();
 
             // Generate the rooms.
             for (int y = 0; y < height; y++)
@@ -29,11 +30,11 @@ namespace Roguelike
                     var room = new Room();
                     room.Visited = false;
 
-                    var enemyChance = rnd.Next(100);
-                    if (enemyChance < 20)
+                    var enemyChance = rng.Next(100);
+                    if (enemyChance < 50)
                     {
                         room.Enemy = new Enemy();
-                        room.Enemy.Level = rnd.Next(10);
+                        room.Enemy.Level = rng.Next(10);
                     }
 
                     dungeon.DungeonRows[y].Add(room);
@@ -86,14 +87,21 @@ namespace Roguelike
 
             } while (startRoom == endRoom);
 
-            var minimalSpanningTree = _dungeonService.GetMinimalSpanningTree(dungeon);
+            // Destroy a couple of corridors.
+            var mst = _dungeonService.GetMinimalSpanningTree(dungeon);
 
-            foreach (var corridor in dungeon.Corridors)
+            var collapsableCorridors = dungeon.Corridors.Select(x => x).ToList();
+            foreach (var corridor in mst)
             {
-                if (!minimalSpanningTree.Contains(corridor))
-                {
-                    corridor.Collapsed = true;
-                }
+                collapsableCorridors.Remove(corridor);
+            }
+
+            for (int i = 0; i < rng.Next(0, collapsableCorridors.Count / 2); i++)
+            {
+                var randomCollapsableCorridor = collapsableCorridors[rng.Next(collapsableCorridors.Count)];
+
+                randomCollapsableCorridor.Collapsed = true;
+                collapsableCorridors.Remove(randomCollapsableCorridor);
             }
 
             return dungeon;

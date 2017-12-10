@@ -1,6 +1,7 @@
 ﻿using Roguelike.models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Roguelike
 {
@@ -8,6 +9,7 @@ namespace Roguelike
     {
         private IDungeonGenerator _dungeonGenerator;
         private IDungeonService _dungeonService;
+        private IRandomService _randomService;
 
         public Dungeon Dungeon { get; set; }
         public Player Player { get; set; }
@@ -19,10 +21,11 @@ namespace Roguelike
 
         public string DrawMessage { get; set; }
 
-        public GameService(IDungeonGenerator dungeonGenerator, IDungeonService dungeonService)
+        public GameService(IDungeonGenerator dungeonGenerator, IDungeonService dungeonService, IRandomService randomService)
         {
             _dungeonGenerator = dungeonGenerator;
             _dungeonService = dungeonService;
+            _randomService = randomService;
 
             CheatMode = false;
         }
@@ -39,7 +42,7 @@ namespace Roguelike
             do
             {
                 ShortestPath = _dungeonService.GetShortestPath(Player.Location, Dungeon.EndRoom);
-                //SafestPath = _dungeonService.GetSafestPath(Player.Location, Dungeon.EndRoom);
+                SafestPath = _dungeonService.GetSafestPath(Dungeon, Player.Location, Dungeon.EndRoom);
                 Draw();
 
                 var input = Console.ReadLine().ToLower();
@@ -71,7 +74,29 @@ namespace Roguelike
 
         private void Handgranaat()
         {
-            throw new NotImplementedException();
+            var rng = _randomService.GetRandom();
+            var mst = _dungeonService.GetMinimalSpanningTree(Dungeon);
+
+            int corridorsToRemove = rng.Next(10, 16);
+
+            var collapsableCorridors = Dungeon.Corridors.Where(x => x.Collapsed == false).ToList();
+            foreach (var corridor in mst)
+            {
+                collapsableCorridors.Remove(corridor);
+            }
+
+            if (collapsableCorridors.Count < corridorsToRemove)
+            {
+                DrawMessage = "Je hebt het gevoel dat de dungeon niet stabiel genoeg meer is om de handgranaat nog een keer te gebruiken.";
+            }
+
+            for (int i = 0; i < corridorsToRemove; i++)
+            {
+                var randomSafeCorridor = collapsableCorridors[rng.Next(collapsableCorridors.Count)];
+                randomSafeCorridor.Collapsed = true;
+            }
+
+            Player.Location.Enemy = null;
         }
 
         private void Startpunt(string[] input)
@@ -123,23 +148,18 @@ namespace Roguelike
 
         private void Talisman()
         {
-            var steps = _dungeonService.GetDistanceInSteps(Player.Location, Dungeon.EndRoom);
+            var stepsShortestDistance = _dungeonService.GetShortestDistanceInSteps(Player.Location, Dungeon.EndRoom);
+            var stepsSafestDistance = _dungeonService.GetSafestDistanceInSteps(Dungeon, Player.Location, Dungeon.EndRoom);
 
-            DrawMessage = $"Je bent {steps} stappen weg van de laatste kamer.";
+            DrawMessage = $"Je bent {stepsShortestDistance} (kortste route) of {stepsSafestDistance} (veiligste route) stap(pen) weg van de laatste kamer.";
         }
 
         private void Draw()
         {
             Console.Clear();
+            Console.WriteLine();
 
-            if (CheatMode)
-            {
-                DrawDungeon(true);
-            }
-            else
-            {
-                DrawDungeon(false);
-            }
+            DrawDungeon(CheatMode);
 
             Console.WriteLine();
             Console.WriteLine("Commands:");
@@ -163,6 +183,8 @@ namespace Roguelike
         {
             foreach (var row in Dungeon.DungeonRows)
             {
+                Console.Write("  ");
+
                 foreach (var room in row)
                 {
                     if (!ignoreVisitedBool && !room.Visited)
@@ -173,13 +195,13 @@ namespace Roguelike
                     {
                         if (ShortestPath.Contains(room))
                         {
-                            Console.ForegroundColor = ConsoleColor.DarkYellow;
+                            Console.ForegroundColor = ConsoleColor.Red;
                         }
 
-                        ////if (SafestPath.Contains(room))
-                        ////{
-                        ////    Console.ForegroundColor = ConsoleColor.DarkGreen;
-                        ////}
+                        if (SafestPath.Contains(room))
+                        {
+                            Console.ForegroundColor = ConsoleColor.DarkGreen;
+                        }
 
                         if (room == Player.Location)
                         {
@@ -211,7 +233,7 @@ namespace Roguelike
                         {
                             if (room.EastCorridor.Collapsed)
                             {
-                                Console.Write("~");
+                                Console.Write("*");
                             }
                             else
                             {
@@ -226,6 +248,7 @@ namespace Roguelike
                 }
 
                 Console.WriteLine();
+                Console.Write("  ");
 
                 foreach (var room in row)
                 {
@@ -235,7 +258,7 @@ namespace Roguelike
                         {
                             if (room.SouthCorridor.Collapsed)
                             {
-                                Console.Write("/");
+                                Console.Write("*");
                             }
                             else
                             {
@@ -261,17 +284,17 @@ namespace Roguelike
 
             while (true)
             {
-                Console.WriteLine("Insert dungeon width: ");
+                Console.WriteLine("Voer de dungeon hoogte in:");
 
                 var input = Console.ReadLine();
 
                 if (!int.TryParse(input, out dungeonWidth))
                 {
-                    Console.WriteLine("Invalid input. Please try again.");
+                    Console.WriteLine("Invalid input.");
                 }
                 else if (dungeonWidth < 2)
                 {
-                    Console.WriteLine("The dungeon must be at least 2 rooms wide. Please insert a higher number.");
+                    Console.WriteLine("De dungeon moet in ieder geval 2 kamers breed zijn.");
                 }
                 else
                 {
@@ -288,17 +311,17 @@ namespace Roguelike
 
             while (true)
             {
-                Console.WriteLine("Insert dungeon height: ");
+                Console.WriteLine("Voer de dungeon hoogte in:");
 
                 var input = Console.ReadLine();
 
                 if (!int.TryParse(input, out dungeonHeight))
                 {
-                    Console.WriteLine("Invalid input. Please try again.");
+                    Console.WriteLine("Invalid input.");
                 }
                 else if (dungeonHeight < 2)
                 {
-                    Console.WriteLine("The dungeon must be at least 2 rooms high. Please insert a higher number.");
+                    Console.WriteLine("The dungeon moet in ieder geval 2 kamers hoog zijn.");
                 }
                 else
                 {
